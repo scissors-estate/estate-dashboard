@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="民泊ダッシュボード">
+    <meta name="theme-color" content="#667eea">
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%23667eea' width='192' height='192'/><text x='96' y='120' font-size='80' fill='white' text-anchor='middle' font-weight='bold' font-family='Arial'>民</text></svg>">
+    <title>民泊運営ダッシュボード - 2026年</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            font-size: 16px;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: max(10px, env(safe-area-inset-top)) 10px 10px 10px;
+            padding-bottom: max(10px, env(safe-area-inset-bottom));
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 15px;
+        }
+
+        .header h1 {
+            font-size: clamp(1.8em, 5vw, 2.5em);
+            margin-bottom: 5px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: clamp(0.9em, 3vw, 1.1em);
+            opacity: 0.9;
+        }
+
+        .header-controls {
+            margin-top: 12px;
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .btn-snapshot {
+            background: rgba(255,255,255,0.2);
+            border: 2px solid white;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 0.85em;
+            transition: all 0.3s ease;
+        }
+
+        .btn-snapshot:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .tab-container {
+            background: white;
+            border-radius: 12px 12px 0 0;
+            box-shadow: 0 -4px 16px rgba(0,0,0,0.1);
+            overflow-x: auto;
+            overflow-y: hidden;
+            margin-bottom: 15px;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .tab-list {
+            display: flex;
+            gap: 0;
+            min-width: min-content;
+        }
+
+        .tab-button {
+            min-width: 70px;
+            padding: 14px 12px;
+            border: none;
+            background: #f5f5f5;
+            cursor: pointer;
+            font-size: 0.9em;
+            font-weight: 500;
+            color: #666;
+            transition: all 0.3s ease;
+            border-bottom: 3px solid transparent;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .tab-button:active {
+            background: #efefef;
+            color: #333;
+        }
+
+        .tab-button.active {
+            background: white;
+            color: #667eea;
+            border-bottom: 3px solid #667eea;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        @media (min-width: 600px) {
+            .dashboard-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (min-width: 1000px) {
+            .dashboard-grid {
+                grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            }
+        }
+
+        .kpi-card {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .kpi-card:active {
+            transform: scale(0.98);
+        }
+
+        .kpi-label {
+            color: #666;
+            font-size: 0.8em;
+            font-weight: 500;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .kpi-value {
+            font-size: clamp(1.8em, 6vw, 2.8em);
+            font-weight: bold;
+            color: #333;
+            line-height: 1.1;
+            word-break: break-word;
+        }
+
+        .kpi-subtext {
+            font-size: 0.75em;
+            color: #999;
+            margin-top: 6px;
+        }
+
+        .kpi-previous {
+            background: #f8f9fa;
+            border-top: 1px solid #ddd;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-radius: 4px;
+        }
+
+        .previous-label {
+            font-size: 0.7em;
+            color: #999;
+            margin-bottom: 4px;
+        }
+
+        .previous-value {
+            font-size: 1.1em;
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 4px;
+        }
+
+        .change-badge {
+            display: inline-block;
+            padding: 3px 6px;
+            border-radius: 3px;
+            font-size: 0.7em;
+            font-weight: 600;
+        }
+
+        .change-badge.positive {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .change-badge.negative {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .kpi-card.total {
+            border-left: 4px solid #4CAF50;
+        }
+
+        .section {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .section h2 {
+            color: #333;
+            font-size: clamp(1.2em, 4vw, 1.6em);
+            margin-bottom: 15px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid #667eea;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin-bottom: 15px;
+        }
+
+        @media (min-width: 600px) {
+            .chart-container {
+                height: 350px;
+            }
+        }
+
+        @media (min-width: 1000px) {
+            .chart-container {
+                height: 400px;
+            }
+        }
+
+        .comparison-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+            margin-bottom: 15px;
+        }
+
+        @media (min-width: 600px) {
+            .comparison-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        .comparison-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 16px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .comparison-box h3 {
+            font-size: 1em;
+            margin-bottom: 12px;
+        }
+
+        .comparison-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .stat-item {
+            background: rgba(255,255,255,0.1);
+            padding: 8px;
+            border-radius: 6px;
+        }
+
+        .stat-label {
+            font-size: 0.75em;
+            opacity: 0.8;
+            margin-bottom: 4px;
+        }
+
+        .stat-value {
+            font-size: 1.1em;
+            font-weight: bold;
+        }
+
+        .properties-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+        }
+
+        @media (min-width: 600px) {
+            .properties-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        .property-card {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .property-card h4 {
+            color: #333;
+            margin-bottom: 8px;
+            font-size: 0.95em;
+        }
+
+        .property-stat {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8em;
+            margin-bottom: 4px;
+            color: #666;
+        }
+
+        .property-stat .value {
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .gauge-container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        @media (min-width: 600px) {
+            .gauge-container {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+
+        .gauge {
+            text-align: center;
+        }
+
+        .gauge h4 {
+            color: #666;
+            margin-bottom: 12px;
+            font-size: 0.85em;
+            text-transform: uppercase;
+        }
+
+        .gauge-circle {
+            width: 100px;
+            height: 100px;
+            margin: 0 auto 8px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8em;
+            font-weight: bold;
+            color: white;
+        }
+
+        @media (min-width: 600px) {
+            .gauge-circle {
+                width: 120px;
+                height: 120px;
+                font-size: 2em;
+            }
+        }
+
+        .gauge-circle.high {
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+        }
+
+        .gauge-circle.medium {
+            background: linear-gradient(135deg, #FF9800, #F57C00);
+        }
+
+        .gauge-circle.low {
+            background: linear-gradient(135deg, #f093fb, #f5576c);
+        }
+
+        .summary-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            font-size: 0.85em;
+        }
+
+        .summary-table th {
+            background: #f0f0f0;
+            padding: 10px;
+            text-align: left;
+            color: #333;
+            font-weight: 600;
+            border-bottom: 2px solid #ddd;
+        }
+
+        .summary-table td {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .summary-table .amount {
+            text-align: right;
+            font-weight: 500;
+            color: #667eea;
+        }
+
+        .footer {
+            text-align: center;
+            color: white;
+            margin-top: 20px;
+            margin-bottom: 20px;
+            opacity: 0.8;
+            font-size: 0.75em;
+        }
+
+        .badge {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 15px;
+            font-size: 0.75em;
+            margin-left: 5px;
+        }
+
+        .content {
+            display: none;
+        }
+
+        .content.active {
+            display: block;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.4);
+        }
+
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            max-width: 90%;
+            width: 400px;
+        }
+
+        .modal h2 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 1.2em;
+        }
+
+        .modal p {
+            color: #666;
+            margin-bottom: 15px;
+            font-size: 0.9em;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .modal-btn {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 0.9em;
+        }
+
+        .modal-btn.save {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .modal-btn.cancel {
+            background: #ddd;
+            color: #333;
+        }
+
+        /* iOS Safe Area対応 */
+        @supports (padding: max(0px)) {
+            body {
+                padding-left: max(10px, env(safe-area-inset-left));
+                padding-right: max(10px, env(safe-area-inset-right));
+                padding-bottom: max(10px, env(safe-area-inset-bottom));
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 民泊ダッシュボード</h1>
+            <p>2026年 パフォーマンスレポート</p>
+            <div class="header-controls">
+                <button class="btn-snapshot" onclick="openSnapshotModal()">📸 保存</button>
+                <button class="btn-snapshot" onclick="clearSnapshot()">🗑️ クリア</button>
+            </div>
+        </div>
+
+        <!-- タブボタン -->
+        <div class="tab-container">
+            <div class="tab-list" id="tabList"></div>
+        </div>
+
+        <!-- コンテンツエリア -->
+        <div id="contentArea"></div>
+
+        <div class="footer">
+            <p>📅 月跨ぎ予約を日数按分で分割計上 | 💾 税抜き価格</p>
+        </div>
+    </div>
+
+    <!-- スナップショットモーダル -->
+    <div id="snapshotModal" class="modal">
+        <div class="modal-content">
+            <h2>スナップショットを保存</h2>
+            <p>現在のデータをスナップショットとして保存します。</p>
+            <div class="modal-buttons">
+                <button class="modal-btn cancel" onclick="closeSnapshotModal()">キャンセル</button>
+                <button class="modal-btn save" onclick="saveSnapshot()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // データを直接定義
+        const monthsData = {"2026-03": {"month_display": "2026-03", "month_days": 31, "direct": {"sales": 7808620, "net": 6567769, "days": 605, "guests": 398, "commission": 1240844, "cleaning": 1038238, "count": 141}, "subcon": {"sales": 1926760, "net": 1615066, "days": 131, "guests": 88, "commission": 311691, "cleaning": 275060, "count": 27}, "total": {"sales": 9735380, "net": 8182835, "days": 736, "count": 168, "guests": 486}, "occupancy": {"direct": 67.3, "subcon": 60.4, "total": 65.9}, "properties": [{"name": "梅島", "sales": 2125492, "days": 172, "net": 1789629}, {"name": "SC", "sales": 1540621, "days": 129, "net": 1296624}, {"name": "亀有", "sales": 1532696, "days": 185, "net": 1291602}, {"name": "青戸代行", "sales": 1335314, "days": 85, "net": 1120768}, {"name": "青戸", "sales": 991167, "days": 51, "net": 830570}, {"name": "墨田", "sales": 625442, "days": 22, "net": 525443}, {"name": "両国", "sales": 497410, "days": 23, "net": 417860}, {"name": "新宿", "sales": 495792, "days": 23, "net": 416041}, {"name": "SC代行", "sales": 434173, "days": 37, "net": 362532}, {"name": "立石", "sales": 157273, "days": 9, "net": 131766}], "expense": {"rent": 3912091, "utility": 0, "total": 3912091}, "operating_profit": {"total": 4270744}}, "2026-04": {"month_display": "2026-04", "month_days": 30, "direct": {"sales": 7676245, "net": 6461225, "days": 517, "guests": 328, "commission": 1215009, "cleaning": 961054, "count": 134}, "subcon": {"sales": 1855222, "net": 1559246, "days": 115, "guests": 75, "commission": 295974, "cleaning": 232936, "count": 25}, "total": {"sales": 9531467, "net": 8020471, "days": 632, "count": 159, "guests": 403}, "occupancy": {"direct": 59.4, "subcon": 54.8, "total": 58.5}, "properties": [{"name": "梅島", "sales": 1821643, "days": 120, "net": 1532937}, {"name": "SC", "sales": 1641165, "days": 115, "net": 1383010}, {"name": "亀有", "sales": 1503660, "days": 166, "net": 1265881}, {"name": "青戸代行", "sales": 1305284, "days": 77, "net": 1096236}, {"name": "青戸", "sales": 1116129, "days": 58, "net": 937455}, {"name": "墨田", "sales": 687829, "days": 23, "net": 579634}, {"name": "SC代行", "sales": 549938, "days": 38, "net": 463010}, {"name": "新宿", "sales": 510458, "days": 18, "net": 429138}, {"name": "両国", "sales": 395361, "days": 17, "net": 333170}], "expense": {"rent": 3912091, "utility": 0, "total": 3912091}, "operating_profit": {"total": 4108380}}, "2026-05": {"month_display": "2026-05", "month_days": 31, "direct": {"sales": 5514020, "net": 4642082, "days": 420, "guests": 199, "commission": 871930, "cleaning": 558021, "count": 77}, "subcon": {"sales": 453683, "net": 382317, "days": 30, "guests": 24, "commission": 71366, "cleaning": 76500, "count": 7}, "total": {"sales": 5967703, "net": 5024399, "days": 450, "count": 84, "guests": 223}, "occupancy": {"direct": 46.7, "subcon": 13.8, "total": 40.3}, "properties": [{"name": "梅島", "sales": 1343187, "days": 96, "net": 1131569}, {"name": "亀有", "sales": 1232573, "days": 146, "net": 1038077}, {"name": "SC", "sales": 1147534, "days": 94, "net": 964121}, {"name": "青戸", "sales": 678364, "days": 37, "net": 571656}, {"name": "青戸代行", "sales": 408247, "days": 26, "net": 344029}, {"name": "墨田", "sales": 404508, "days": 18, "net": 340878}, {"name": "新宿", "sales": 388745, "days": 13, "net": 326868}, {"name": "両国", "sales": 319109, "days": 16, "net": 268913}, {"name": "SC代行", "sales": 45436, "days": 4, "net": 38288}], "expense": {"rent": 3912091, "utility": 0, "total": 3912091}, "operating_profit": {"total": 1112308}}, "2026-06": {"month_display": "2026-06", "month_days": 30, "direct": {"sales": 793664, "net": 667733, "days": 71, "guests": 16, "commission": 125927, "cleaning": 79173, "count": 15}, "subcon": {"sales": 319273, "net": 269051, "days": 21, "guests": 4, "commission": 50222, "cleaning": 11000, "count": 1}, "total": {"sales": 1112937, "net": 936784, "days": 92, "count": 16, "guests": 20}, "occupancy": {"direct": 8.2, "subcon": 10.0, "total": 8.5}, "properties": [{"name": "亀有", "sales": 360587, "days": 45, "net": 303869}, {"name": "青戸代行", "sales": 319273, "days": 21, "net": 269051}, {"name": "青戸", "sales": 137229, "days": 8, "net": 115644}, {"name": "新宿", "sales": 82636, "days": 3, "net": 68546}, {"name": "梅島", "sales": 81350, "days": 7, "net": 68553}, {"name": "墨田", "sales": 74227, "days": 3, "net": 62551}, {"name": "SC", "sales": 57635, "days": 5, "net": 48570}], "expense": {"rent": 3912091, "utility": 0, "total": 3912091}, "operating_profit": {"total": -2975307}}, "2026-07": {"month_display": "2026-07", "month_days": 31, "direct": {"sales": 427087, "net": 359907, "days": 34, "guests": 7, "commission": 67180, "cleaning": 23000, "count": 3}, "subcon": {"sales": 0, "net": 0, "days": 0, "guests": 0, "commission": 0, "cleaning": 0, "count": 0}, "total": {"sales": 427087, "net": 359907, "days": 34, "count": 3, "guests": 7}, "occupancy": {"direct": 3.8, "subcon": 0.0, "total": 3.0}, "properties": [{"name": "梅島", "sales": 279200, "days": 21, "net": 235282}, {"name": "SC", "sales": 119727, "days": 10, "net": 100894}, {"name": "亀有", "sales": 28160, "days": 3, "net": 23731}], "expense": {"rent": 3912091, "utility": 0, "total": 3912091}, "operating_profit": {"total": -3552184}}, "2026-08": {"month_display": "2026-08", "month_days": 31, "direct": {"sales": 35425, "net": 29853, "days": 4, "guests": 2, "commission": 5572, "cleaning": 7000, "count": 1}, "subcon": {"sales": 0, "net": 0, "days": 0, "guests": 0, "commission": 0, "cleaning": 0, "count": 0}, "total": {"sales": 35425, "net": 29853, "days": 4, "count": 1, "guests": 2}, "occupancy": {"direct": 0.4, "subcon": 0.0, "total": 0.4}, "properties": [{"name": "亀有", "sales": 35425, "days": 4, "net": 29853}], "expense": {"rent": 3912091, "utility": 0, "total": 3912091}, "operating_profit": {"total": -3882238}}};
+
+        // スナップショット管理
+        const SNAPSHOT_KEY = 'minpakuDashboardSnapshot';
+
+        function saveSnapshot() {
+            const snapshot = {
+                timestamp: new Date().toISOString(),
+                data: JSON.parse(JSON.stringify(monthsData))
+            };
+            localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(snapshot));
+            closeSnapshotModal();
+            alert('✅ スナップショットを保存しました！');
+        }
+
+        function getSnapshot() {
+            const stored = localStorage.getItem(SNAPSHOT_KEY);
+            return stored ? JSON.parse(stored) : null;
+        }
+
+        function clearSnapshot() {
+            if (confirm('スナップショットを削除しますか？')) {
+                localStorage.removeItem(SNAPSHOT_KEY);
+                alert('✅ クリアしました。');
+                location.reload();
+            }
+        }
+
+        function openSnapshotModal() {
+            document.getElementById('snapshotModal').classList.add('show');
+        }
+
+        function closeSnapshotModal() {
+            document.getElementById('snapshotModal').classList.remove('show');
+        }
+
+        // タブの生成
+        function generateTabs() {
+            const tabList = document.getElementById('tabList');
+            const months = Object.keys(monthsData);
+            
+            months.forEach((month, index) => {
+                const button = document.createElement('button');
+                button.className = 'tab-button' + (index === 0 ? ' active' : '');
+                button.textContent = monthsData[month].month_display;
+                button.onclick = (e) => switchMonth(month, e);
+                tabList.appendChild(button);
+            });
+        }
+
+        // コンテンツの生成
+        function generateContent() {
+            const contentArea = document.getElementById('contentArea');
+            const months = Object.keys(monthsData);
+            const snapshot = getSnapshot();
+            
+            months.forEach((month, index) => {
+                const data = monthsData[month];
+                const previousData = snapshot ? snapshot.data[month] : null;
+                const content = createDashboardContent(month, data, previousData);
+                
+                const div = document.createElement('div');
+                div.id = `content-${month}`;
+                div.className = 'content' + (index === 0 ? ' active' : '');
+                div.innerHTML = content;
+                contentArea.appendChild(div);
+                
+                if (index === 0) {
+                    setTimeout(() => { drawChart(month); }, 100);
+                }
+            });
+        }
+
+        // 月を切り替える
+        function switchMonth(month, event) {
+            document.querySelectorAll('.content').forEach(el => {
+                el.classList.remove('active');
+            });
+
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            const contentEl = document.getElementById(`content-${month}`);
+            if (contentEl) {
+                contentEl.classList.add('active');
+                setTimeout(() => { drawChart(month); }, 0);
+            }
+
+            event.target.classList.add('active');
+            window.scrollTo(0, 0);
+        }
+
+        // グラフを描画
+        let charts = {};
+        function drawChart(month) {
+            const data = monthsData[month];
+            const ctx = document.getElementById(`chart-${month}`);
+            
+            if (!ctx) return;
+            
+            if (charts[month]) { charts[month].destroy(); }
+
+            charts[month] = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['売上', '実受取', 'コミッション', 'クリーニング'],
+                    datasets: [
+                        {
+                            label: '直営',
+                            data: [data.direct.sales, data.direct.net, data.direct.commission, data.direct.cleaning],
+                            backgroundColor: '#667eea',
+                            borderRadius: 6,
+                            borderSkipped: false
+                        },
+                        {
+                            label: '代行',
+                            data: [data.subcon.sales, data.subcon.net, data.subcon.commission, data.subcon.cleaning],
+                            backgroundColor: '#f093fb',
+                            borderRadius: 6,
+                            borderSkipped: false
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: { font: { size: 11 }, padding: 12 }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(v) { return '¥' + (v/1000000).toFixed(1) + 'M'; },
+                                font: { size: 10 }
+                            }
+                        },
+                        x: {
+                            ticks: { font: { size: 10 } }
+                        }
+                    }
+                }
+            });
+        }
+
+        // 前日比の計算
+        function calculateChange(current, previous) {
+            if (!previous || previous === 0) return null;
+            const diff = current - previous;
+            const percentChange = (diff / previous) * 100;
+            return {
+                diff: diff,
+                percent: percentChange,
+                isPositive: diff >= 0
+            };
+        }
+
+        function getPreviousHTML(label, current, previous) {
+            if (!previous) {
+                return `<div class="kpi-previous"><div class="previous-label">前回: なし</div></div>`;
+            }
+
+            const change = calculateChange(current, previous);
+            const badgeClass = change.isPositive ? 'positive' : 'negative';
+            const changeSign = change.isPositive ? '+' : '';
+            
+            return `
+                <div class="kpi-previous">
+                    <div class="previous-label">前回インポート</div>
+                    <div class="previous-value">¥${previous.toLocaleString('ja-JP')}</div>
+                    <span class="change-badge ${badgeClass}">
+                        ${changeSign}¥${Math.abs(change.diff).toLocaleString('ja-JP')} (${changeSign}${change.percent.toFixed(1)}%)
+                    </span>
+                </div>
+            `;
+        }
+
+        // ダッシュボードHTMLの生成
+        function createDashboardContent(month, data, previousData) {
+            const direct = data.direct;
+            const subcon = data.subcon;
+            const total = data.total;
+            const occ = data.occupancy;
+            const props = data.properties;
+
+            const directColor = occ.direct >= 50 ? 'high' : (occ.direct >= 30 ? 'medium' : 'low');
+            const subconColor = occ.subcon >= 50 ? 'high' : (occ.subcon >= 30 ? 'medium' : 'low');
+            const totalColor = occ.total >= 50 ? 'high' : (occ.total >= 30 ? 'medium' : 'low');
+
+            let propsHTML = props.map((prop, idx) => `
+                <div class="property-card">
+                    <h4>#${idx + 1} ${prop.name}</h4>
+                    <div class="property-stat">
+                        <span>売上</span>
+                        <span class="value">¥${prop.sales.toLocaleString('ja-JP')}</span>
+                    </div>
+                    <div class="property-stat">
+                        <span>実受取</span>
+                        <span class="value">¥${prop.net.toLocaleString('ja-JP')}</span>
+                    </div>
+                    <div class="property-stat">
+                        <span>日数</span>
+                        <span class="value">${prop.days}日</span>
+                    </div>
+                </div>
+            `).join('');
+
+            return `
+                <!-- メインKPI -->
+                <div class="dashboard-grid">
+                    <div class="kpi-card total">
+                        <div class="kpi-label">売上（税抜）</div>
+                        <div class="kpi-value">¥${total.sales.toLocaleString('ja-JP')}</div>
+                        <div class="kpi-subtext">合計</div>
+                        ${getPreviousHTML('売上', total.sales, previousData ? previousData.total.sales : null)}
+                    </div>
+                    <div class="kpi-card total">
+                        <div class="kpi-label">実受取</div>
+                        <div class="kpi-value">¥${total.net.toLocaleString('ja-JP')}</div>
+                        <div class="kpi-subtext">手取り</div>
+                        ${getPreviousHTML('実受取', total.net, previousData ? previousData.total.net : null)}
+                    </div>
+                    <div class="kpi-card total">
+                        <div class="kpi-label">稼働率</div>
+                        <div class="kpi-value">${occ.total}%</div>
+                        <div class="kpi-subtext">${total.days}日 / ${36 * data.month_days}日</div>
+                        ${getPreviousHTML('稼働率', occ.total, previousData ? previousData.occupancy.total : null)}
+                    </div>
+                    <div class="kpi-card total">
+                        <div class="kpi-label">予約件数</div>
+                        <div class="kpi-value">${total.count}</div>
+                        <div class="kpi-subtext">確認済み</div>
+                        ${getPreviousHTML('予約件数', total.count, previousData ? previousData.total.count : null)}
+                    </div>
+                </div>
+
+                <!-- 直営 vs 代行 比較 -->
+                <div class="section">
+                    <h2>直営 vs 代行</h2>
+                    <div class="comparison-grid">
+                        <div class="comparison-box">
+                            <h3>直営</h3>
+                            <div class="comparison-stats">
+                                <div class="stat-item">
+                                    <div class="stat-label">売上</div>
+                                    <div class="stat-value">¥${direct.sales.toLocaleString('ja-JP')}</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-label">実受取</div>
+                                    <div class="stat-value">¥${direct.net.toLocaleString('ja-JP')}</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-label">日数</div>
+                                    <div class="stat-value">${direct.days}日</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-label">件数</div>
+                                    <div class="stat-value">${direct.count}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="comparison-box" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                            <h3>代行</h3>
+                            <div class="comparison-stats">
+                                <div class="stat-item">
+                                    <div class="stat-label">売上</div>
+                                    <div class="stat-value">¥${subcon.sales.toLocaleString('ja-JP')}</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-label">実受取</div>
+                                    <div class="stat-value">¥${subcon.net.toLocaleString('ja-JP')}</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-label">日数</div>
+                                    <div class="stat-value">${subcon.days}日</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-label">件数</div>
+                                    <div class="stat-value">${subcon.count}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="chart-container">
+                        <canvas id="chart-${month}"></canvas>
+                    </div>
+                </div>
+
+                <!-- 稼働率ゲージ -->
+                <div class="section">
+                    <h2>稼働率分析</h2>
+                    <div class="gauge-container">
+                        <div class="gauge">
+                            <h4>直営</h4>
+                            <div class="gauge-circle ${directColor}">
+                                <span>${occ.direct}%</span>
+                            </div>
+                        </div>
+                        <div class="gauge">
+                            <h4>代行</h4>
+                            <div class="gauge-circle ${subconColor}">
+                                <span>${occ.subcon}%</span>
+                            </div>
+                        </div>
+                        <div class="gauge">
+                            <h4>全体</h4>
+                            <div class="gauge-circle ${totalColor}">
+                                <span>${occ.total}%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 売上内訳 -->
+                <div class="section">
+                    <h2>売上内訳 & コスト</h2>
+                    <table class="summary-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 30%;">項目</th>
+                                <th class="amount" style="width: 35%;">直営</th>
+                                <th class="amount" style="width: 35%;">代行</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>売上（税抜）</strong></td>
+                                <td class="amount"><strong>¥${direct.sales.toLocaleString('ja-JP')}</strong></td>
+                                <td class="amount"><strong>¥${subcon.sales.toLocaleString('ja-JP')}</strong></td>
+                            </tr>
+                            <tr>
+                                <td>- コミッション</td>
+                                <td class="amount" style="color: #f5576c;">-¥${direct.commission.toLocaleString('ja-JP')}</td>
+                                <td class="amount" style="color: #f5576c;">-¥${subcon.commission.toLocaleString('ja-JP')}</td>
+                            </tr>
+                            <tr>
+                                <td>- クリーニング</td>
+                                <td class="amount" style="color: #FF9800;">-¥${direct.cleaning.toLocaleString('ja-JP')}</td>
+                                <td class="amount" style="color: #FF9800;">-¥${subcon.cleaning.toLocaleString('ja-JP')}</td>
+                            </tr>
+                            <tr style="background: #f0f0f0; font-weight: bold;">
+                                <td><strong>= 実受取</strong></td>
+                                <td class="amount" style="color: #4CAF50;"><strong>¥${direct.net.toLocaleString('ja-JP')}</strong></td>
+                                <td class="amount" style="color: #4CAF50;"><strong>¥${subcon.net.toLocaleString('ja-JP')}</strong></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- 支出分析 -->
+                <div class="section">
+                    <h2>支出分析</h2>
+                    <table class="summary-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 30%;">項目</th>
+                                <th class="amount" style="width: 70%;">金額（税抜）</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>家賃</strong></td>
+                                <td class="amount"><strong>¥${data.expense.rent.toLocaleString('ja-JP')}</strong></td>
+                            </tr>
+                            <tr>
+                                <td>光熱費（電気・ガス・水道）</td>
+                                <td class="amount">¥${data.expense.utility.toLocaleString('ja-JP')}</td>
+                            </tr>
+                            <tr style="background: #f0f0f0; font-weight: bold;">
+                                <td><strong>支出合計</strong></td>
+                                <td class="amount" style="color: #f5576c;"><strong>-¥${data.expense.total.toLocaleString('ja-JP')}</strong></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- 営業利益 -->
+                <div class="section">
+                    <h2>収支サマリー</h2>
+                    <table class="summary-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 30%;">項目</th>
+                                <th class="amount" style="width: 70%;">金額</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>実受取（売上 - コミッション）</strong></td>
+                                <td class="amount"><strong style="color: #4CAF50;">¥${total.net.toLocaleString('ja-JP')}</strong></td>
+                            </tr>
+                            <tr>
+                                <td>- 支出合計</td>
+                                <td class="amount" style="color: #f5576c;">-¥${data.expense.total.toLocaleString('ja-JP')}</td>
+                            </tr>
+                            <tr style="background: linear-gradient(135deg, #4CAF50, #45a049); color: white; font-weight: bold;">
+                                <td><strong>営業利益</strong></td>
+                                <td class="amount"><strong>¥${data.operating_profit.total.toLocaleString('ja-JP')}</strong></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- 物件別ランキング -->
+                <div class="section">
+                    <h2>物件別ランキング <span class="badge">Top ${props.length}</span></h2>
+                    <div class="properties-grid">
+                        ${propsHTML}
+                    </div>
+                </div>
+            `;
+        }
+
+        // 初期化
+        window.addEventListener('load', () => {
+            generateTabs();
+            generateContent();
+            
+            // Service Worker を登録（PWA化）
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('sw.js').then((reg) => {
+                    console.log('Service Worker 登録成功');
+                }).catch((err) => {
+                    console.log('Service Worker 登録失敗:', err);
+                });
+            }
+        });
+    </script>
+</body>
+</html>

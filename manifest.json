@@ -1,0 +1,32 @@
+{
+  "name": "民泊運営ダッシュボード",
+  "short_name": "民泊ダッシュボード",
+  "description": "民泊の売上、稼働率、物件別ランキングを管理するダッシュボード",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#667eea",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%23667eea' width='192' height='192'/><text x='96' y='120' font-size='80' fill='white' text-anchor='middle' font-weight='bold' font-family='Arial'>民</text></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect fill='%23667eea' width='512' height='512'/><text x='256' y='380' font-size='220' fill='white' text-anchor='middle' font-weight='bold' font-family='Arial'>民</text></svg>",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 540 720'><rect fill='%23f5f5f5' width='540' height='720'/><rect fill='%23667eea' width='540' height='100'/><text x='270' y='60' font-size='30' fill='white' text-anchor='middle' font-weight='bold'>民泊ダッシュボード</text></svg>",
+      "sizes": "540x720",
+      "type": "image/svg+xml",
+      "form_factor": "narrow"
+    }
+  ]
+}
