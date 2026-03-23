@@ -84,8 +84,8 @@ input[type=date]:focus{border-color:var(--blue-brd)}
 
   <div style="margin-bottom:16px">
     <label style="font-size:13px;color:var(--text2);display:block;margin-bottom:8px">予約CSV</label>
-    <div class="drop-zone" id="zone-booking" ondragover="onDrag(event,'zone-booking')" ondragleave="offDrag('zone-booking')" ondrop="onDrop(event,'booking')">
-      <input type="file" accept=".csv" onchange="onFile(event,'booking')">
+    <div class="drop-zone" id="zone-booking" ondragover="onDrag(event,'zone-booking')" ondragleave="offDrag('zone-booking')" ondrop="onDrop(event,'booking')" onclick="document.getElementById('input-booking').click()">
+      <input type="file" id="input-booking" accept=".csv" style="display:none" onchange="onFile(event,'booking')">
       <div class="drop-icon">📋</div>
       <div class="drop-label">Booking_xxxx.csv</div>
       <div class="drop-sub">クリックまたはドラッグ＆ドロップ</div>
@@ -95,8 +95,8 @@ input[type=date]:focus{border-color:var(--blue-brd)}
 
   <div>
     <label style="font-size:13px;color:var(--text2);display:block;margin-bottom:8px">清掃タスクCSV</label>
-    <div class="drop-zone" id="zone-cleaning" ondragover="onDrag(event,'zone-cleaning')" ondragleave="offDrag('zone-cleaning')" ondrop="onDrop(event,'cleaning')">
-      <input type="file" accept=".csv" onchange="onFile(event,'cleaning')">
+    <div class="drop-zone" id="zone-cleaning" ondragover="onDrag(event,'zone-cleaning')" ondragleave="offDrag('zone-cleaning')" ondrop="onDrop(event,'cleaning')" onclick="document.getElementById('input-cleaning').click()">
+      <input type="file" id="input-cleaning" accept=".csv" style="display:none" onchange="onFile(event,'cleaning')">
       <div class="drop-icon">🧹</div>
       <div class="drop-label">cleaning_tasks_xxxx.csv</div>
       <div class="drop-sub">クリックまたはドラッグ＆ドロップ</div>
