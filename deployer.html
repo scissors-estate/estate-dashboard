@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>清掃ダッシュボード 自動デプロイツール</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#F4F2EE;--surface:#fff;--border:rgba(0,0,0,0.1);--border2:rgba(0,0,0,0.06);
+  --text:#1A1A18;--text2:#6B6A66;--text3:#9A998F;
+  --ok:#3B6D11;--ok-bg:#EAF3DE;--ok-brd:#639922;
+  --warn:#854F0B;--warn-bg:#FAEEDA;--warn-brd:#BA7517;
+  --err:#A32D2D;--err-bg:#FCEBEB;--err-brd:#E24B4A;
+  --blue:#185FA5;--blue-bg:#E6F1FB;--blue-brd:#378ADD;
+}
+body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:32px 20px 60px;max-width:700px;margin:0 auto}
+h1{font-size:22px;font-weight:700;margin-bottom:6px}
+.subtitle{font-size:13px;color:var(--text2);font-family:'DM Mono',monospace;margin-bottom:32px}
+.card{background:var(--surface);border-radius:14px;border:1px solid var(--border2);padding:24px;margin-bottom:20px}
+.card-title{font-size:15px;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.step-badge{width:24px;height:24px;border-radius:50%;background:var(--text);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.drop-zone{border:2px dashed var(--border);border-radius:12px;padding:32px 20px;text-align:center;cursor:pointer;transition:all .2s;background:var(--bg);position:relative}
+.drop-zone:hover,.drop-zone.drag-over{border-color:var(--blue-brd);background:var(--blue-bg)}
+.drop-zone.has-file{border-color:var(--ok-brd);background:var(--ok-bg)}
+.drop-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.drop-icon{font-size:32px;margin-bottom:8px}
+.drop-label{font-size:14px;font-weight:500;color:var(--text2)}
+.drop-sub{font-size:12px;color:var(--text3);margin-top:4px}
+.file-name{font-family:'DM Mono',monospace;font-size:13px;font-weight:500;color:var(--ok);margin-top:8px}
+.period-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.period-label{font-size:13px;color:var(--text2);white-space:nowrap}
+input[type=date]{font-family:'DM Mono',monospace;font-size:13px;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);outline:none}
+input[type=date]:focus{border-color:var(--blue-brd)}
+.deploy-btn{width:100%;padding:16px;border-radius:12px;border:none;background:#1A1A18;color:#fff;font-family:'Noto Sans JP',sans-serif;font-size:16px;font-weight:700;cursor:pointer;transition:all .15s;margin-top:8px}
+.deploy-btn:hover:not(:disabled){background:#444441;transform:translateY(-1px)}
+.deploy-btn:disabled{background:#B4B2A9;cursor:not-allowed}
+.status-box{border-radius:12px;padding:16px 18px;margin-top:16px;font-size:14px;display:none}
+.status-box.show{display:block}
+.status-box.loading{background:var(--blue-bg);border:1px solid var(--blue-brd);color:var(--blue)}
+.status-box.success{background:var(--ok-bg);border:1px solid var(--ok-brd);color:var(--ok)}
+.status-box.error{background:var(--err-bg);border:1px solid var(--err-brd);color:var(--err)}
+.status-title{font-weight:700;margin-bottom:4px}
+.status-msg{font-size:13px;opacity:.85}
+.url-link{display:inline-block;margin-top:8px;font-family:'DM Mono',monospace;font-size:13px;color:var(--blue);text-decoration:underline}
+.progress-bar{height:6px;background:var(--border);border-radius:99px;margin-top:12px;overflow:hidden}
+.progress-fill{height:100%;background:var(--blue-brd);border-radius:99px;width:0%;transition:width .3s}
+.log-box{background:#1A1A18;border-radius:10px;padding:14px 16px;margin-top:12px;font-family:'DM Mono',monospace;font-size:12px;color:#9A998F;max-height:160px;overflow-y:auto;line-height:1.6}
+.log-box .ok{color:#97C459}.log-box .warn{color:#EF9F27}.log-box .err{color:#E24B4A}.log-box .info{color:#85B7EB}
+.token-row{display:flex;gap:8px}
+.token-input{flex:1;font-family:'DM Mono',monospace;font-size:12px;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);outline:none}
+.token-input:focus{border-color:var(--blue-brd)}
+.hint{font-size:11px;color:var(--text3);margin-top:6px}
+</style>
+</head>
+<body>
+
+<h1>🧹 清掃ダッシュボード</h1>
+<p class="subtitle">自動デプロイツール — CSVをドロップして送信するだけ</p>
+
+<!-- STEP 1: 設定 -->
+<div class="card">
+  <div class="card-title"><div class="step-badge">1</div>Netlify 設定</div>
+  <div style="margin-bottom:12px">
+    <label style="font-size:13px;color:var(--text2);display:block;margin-bottom:6px">API トークン</label>
+    <div class="token-row">
+      <input class="token-input" type="password" id="token-input" placeholder="nfp_xxxx..." value="">
+      <button onclick="toggleToken()" style="padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);cursor:pointer;font-size:12px">表示</button>
+    </div>
+    <p class="hint">⚠️ トークンはこのブラウザ内だけで使用されます。外部には送信されません。</p>
+  </div>
+  <div>
+    <label style="font-size:13px;color:var(--text2);display:block;margin-bottom:6px">サイト ID</label>
+    <input class="token-input" type="text" id="site-id" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" value="" style="width:100%">
+  </div>
+  <button onclick="saveSettings()" style="margin-top:12px;padding:8px 16px;border-radius:8px;border:1px solid var(--border);background:var(--bg);cursor:pointer;font-size:13px;font-weight:500">保存する</button>
+  <span id="save-msg" style="font-size:12px;color:var(--ok);margin-left:8px;display:none">✅ 保存しました</span>
+</div>
+
+<!-- STEP 2: CSVファイル -->
+<div class="card">
+  <div class="card-title"><div class="step-badge">2</div>CSVファイルをドロップ</div>
+
+  <div style="margin-bottom:16px">
+    <label style="font-size:13px;color:var(--text2);display:block;margin-bottom:8px">予約CSV</label>
+    <div style="border:2px dashed var(--border);border-radius:12px;padding:20px;background:var(--bg)" id="zone-booking" ondragover="onDrag(event,'zone-booking')" ondragleave="offDrag('zone-booking')" ondrop="onDrop(event,'booking')">
+      <div style="text-align:center;margin-bottom:12px">
+        <div style="font-size:28px;margin-bottom:6px">📋</div>
+        <div id="fname-booking" style="font-size:13px;color:var(--text2)">ファイル未選択</div>
+      </div>
+      <label style="display:block;text-align:center">
+        <input type="file" accept=".csv" onchange="onFile(event,'booking')" style="font-size:13px;color:var(--text2);width:100%">
+      </label>
+    </div>
+  </div>
+
+  <div>
+    <label style="font-size:13px;color:var(--text2);display:block;margin-bottom:8px">清掃タスクCSV</label>
+    <div style="border:2px dashed var(--border);border-radius:12px;padding:20px;background:var(--bg)" id="zone-cleaning" ondragover="onDrag(event,'zone-cleaning')" ondragleave="offDrag('zone-cleaning')" ondrop="onDrop(event,'cleaning')">
+      <div style="text-align:center;margin-bottom:12px">
+        <div style="font-size:28px;margin-bottom:6px">🧹</div>
+        <div id="fname-cleaning" style="font-size:13px;color:var(--text2)">ファイル未選択</div>
+      </div>
+      <label style="display:block;text-align:center">
+        <input type="file" accept=".csv" onchange="onFile(event,'cleaning')" style="font-size:13px;color:var(--text2);width:100%">
+      </label>
+    </div>
+  </div>
+</div>
+
+<!-- STEP 3: 期間 -->
+<div class="card">
+  <div class="card-title"><div class="step-badge">3</div>表示期間を設定</div>
+  <div class="period-row">
+    <span class="period-label">開始日</span>
+    <input type="date" id="date-start" value="2026-03-19">
+    <span class="period-label">〜　終了日</span>
+    <input type="date" id="date-end" value="2026-03-30">
+  </div>
+</div>
+
+<!-- STEP 4: デプロイ -->
+<div class="card">
+  <div class="card-title"><div class="step-badge">4</div>デプロイ</div>
+  <button class="deploy-btn" id="deploy-btn" onclick="deploy()" disabled>
+    🚀 ダッシュボードを生成してデプロイ
+  </button>
+
+  <div class="status-box" id="status-box">
+    <div class="status-title" id="status-title"></div>
+    <div class="status-msg" id="status-msg"></div>
+    <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+    <a class="url-link" id="status-url" href="#" target="_blank" style="display:none"></a>
+  </div>
+
+  <div class="log-box" id="log-box" style="display:none"></div>
+</div>
+
+<script>
+// ── 設定の保存・読み込み ──
+const SITE_URL = 'https://resonant-dango-ce0922.netlify.app';
+
+window.onload = () => {
+  try {
+    const t = localStorage.getItem('netlify_token') || '';
+    const s = localStorage.getItem('netlify_site_id') || '';
+    if(t) document.getElementById('token-input').value = t;
+    if(s) document.getElementById('site-id').value = s;
+  } catch(e){}
+  checkReady();
+};
+
+function saveSettings(){
+  try {
+    localStorage.setItem('netlify_token', document.getElementById('token-input').value);
+    localStorage.setItem('netlify_site_id', document.getElementById('site-id').value);
+    const msg = document.getElementById('save-msg');
+    msg.style.display = 'inline';
+    setTimeout(()=>msg.style.display='none', 2000);
+  } catch(e){}
+  checkReady();
+}
+
+function toggleToken(){
+  const inp = document.getElementById('token-input');
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+}
+
+// ── ファイル管理 ──
+let files = { booking: null, cleaning: null };
+
+function onDrag(e, zoneId){ e.preventDefault(); document.getElementById(zoneId).classList.add('drag-over'); }
+function offDrag(zoneId){ document.getElementById(zoneId).classList.remove('drag-over'); }
+
+function onDrop(e, type){
+  e.preventDefault();
+  offDrag('zone-' + type);
+  const file = e.dataTransfer.files[0];
+  if(file) setFile(type, file);
+}
+
+function onFile(e, type){
+  const file = e.target.files[0];
+  if(file) setFile(type, file);
+}
+
+function setFile(type, file){
+  files[type] = file;
+  const zone = document.getElementById('zone-' + type);
+  zone.classList.add('has-file');
+  zone.classList.remove('drag-over');
+  document.getElementById('fname-' + type).textContent = '✅ ' + file.name;
+  checkReady();
+}
+
+function checkReady(){
+  const token = document.getElementById('token-input').value.trim();
+  const siteId = document.getElementById('site-id').value.trim();
+  const ready = files.booking && files.cleaning && token && siteId;
+  document.getElementById('deploy-btn').disabled = !ready;
+}
+
+// ── ログ ──
+function log(msg, type='info'){
+  const box = document.getElementById('log-box');
+  box.style.display = 'block';
+  box.innerHTML += `<span class="${type}">${msg}</span>\n`;
+  box.scrollTop = box.scrollHeight;
+}
+
+function setProgress(pct){ document.getElementById('progress-fill').style.width = pct + '%'; }
+
+function setStatus(type, title, msg, url=''){
+  const box = document.getElementById('status-box');
+  box.className = 'status-box show ' + type;
+  document.getElementById('status-title').textContent = title;
+  document.getElementById('status-msg').textContent = msg;
+  const urlEl = document.getElementById('status-url');
+  if(url){ urlEl.href = url; urlEl.textContent = url; urlEl.style.display = 'inline'; }
+  else { urlEl.style.display = 'none'; }
+}
+
+// ── CSV パーサー ──
+function parseCSV(text){
+  // BOM除去 + 改行コード正規化（\r\n → \n）
+  const normalized = text.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const lines = normalized.split('\n').filter(l => l.trim());
+  if(!lines.length) return [];
+  const firstLine = lines[0];
+  const headers = parseCSVLine(firstLine);
+  return lines.slice(1).map(line => {
+    const vals = parseCSVLine(line);
+    const obj = {};
+    headers.forEach((h, i) => obj[h] = (vals[i] || '').trim());
+    return obj;
+  });
+}
+
+function parseCSVLine(line){
+  const result = [];
+  let cur = '', inQuote = false;
+  for(let i = 0; i < line.length; i++){
+    const c = line[i];
+    if(c === '"'){ inQuote = !inQuote; }
+    else if(c === ',' && !inQuote){ result.push(cur); cur = ''; }
+    else { cur += c; }
+  }
+  result.push(cur);
+  return result;
+}
+
+// ── データ処理 ──
+function processData(bookingText, cleaningText){
+  const bookings = parseCSV(bookingText);
+  const cleanings = parseCSV(cleaningText);
+
+  const confirmed = bookings.filter(b => b['状態'] === '確認済み');
+
+  const all_rooms = {};
+  confirmed.forEach(b => {
+    const tag = b['ルームタイプメニュー'];
+    if(tag && !all_rooms[tag]) all_rooms[tag] = b['物件名'];
+  });
+  cleanings.forEach(c => {
+    const parts = (c['ルーム'] || '').split('/');
+    if(parts.length >= 2 && !all_rooms[parts[1]]) all_rooms[parts[1]] = parts[0];
+  });
+
+  const bookings_by_room = {};
+  confirmed.forEach(b => {
+    const tag = b['ルームタイプメニュー'];
+    if(!tag) return;
+    if(!bookings_by_room[tag]) bookings_by_room[tag] = [];
+    bookings_by_room[tag].push({
+      g: b['ゲスト名'], ci: b['チェックイン'], co: b['チェックアウト'],
+      n: b['ゲスト数'], s: b['予約サイト'], nat: b['国籍']
+    });
+  });
+
+  const cleaning_history = {};
+  cleanings.forEach(c => {
+    const parts = (c['ルーム'] || '').split('/');
+    if(parts.length < 2) return;
+    const tag = parts[1];
+    if(!cleaning_history[tag]) cleaning_history[tag] = [];
+    cleaning_history[tag].push({ d: c['清掃日'], c: c['クリーナー'], cm: c['コメント'] || '' });
+  });
+
+  const cleaning_map = {};
+  cleanings.forEach(c => {
+    const parts = (c['ルーム'] || '').split('/');
+    if(parts.length < 2) return;
+    const tag = parts[1];
+    const next_ci = (c['次回チェックイン日'] || '').replace(/\//g, '-');
+    if(!next_ci) return;
+    cleaning_map[`${next_ci}_${tag}`] = {
+      cl: c['クリーナー'], sd: c['同日入替'],
+      cit: c['次回のチェックイン時間'], cot: c['チェックアウト時間'],
+      cm: c['コメント'] || '', cd: c['清掃日']
+    };
+  });
+
+  return { all_rooms, bookings_by_room, cleaning_history, cleaning_map };
+}
+
+// ── HTML生成 ──
+function generateHTML(data, startDate, importedAt, jsonData){
+  const { all_rooms, bookings_by_room, cleaning_history, cleaning_map } = data;
+
+  return `<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>清掃確認ダッシュボード</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#F4F2EE;--surface:#FFFFFF;--border:rgba(0,0,0,0.1);--border2:rgba(0,0,0,0.06);
+  --text:#1A1A18;--text2:#6B6A66;--text3:#9A998F;
+  --ci-bg:#EAF3DE;--ci-brd:#639922;--ci-bdg:#3B6D11;
+  --wn-bg:#FAEEDA;--wn-brd:#BA7517;--wn-bdg:#854F0B;
+  --dg-bg:#FCEBEB;--dg-brd:#E24B4A;--dg-bdg:#A32D2D;
+  --un-bg:#E6F1FB;--un-brd:#378ADD;--un-bdg:#185FA5;
+  --st-bg:#F1EFE8;--st-brd:#888780;--st-bdg:#5F5E5A;
+  --vc-bg:#EEEDFE;--vc-brd:#7F77DD;--vc-bdg:#3C3489;
+  --co-bg:#E1F5EE;--co-brd:#1D9E75;--co-bdg:#085041;
+}
+body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:24px 20px 60px}
+.header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;margin-bottom:28px}
+.header h1{font-size:22px;font-weight:700;letter-spacing:-.5px}
+.header p{font-size:13px;color:var(--text2);margin-top:3px;font-family:'DM Mono',monospace}
+.date-nav{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:8px 12px}
+.date-nav button{background:none;border:none;cursor:pointer;color:var(--text2);font-size:18px;line-height:1;padding:2px 6px;border-radius:6px;transition:background .15s}
+.date-nav button:hover{background:var(--bg)}
+#date-input{font-family:'DM Mono',monospace;font-size:14px;font-weight:500;color:var(--text);border:none;background:none;outline:none;cursor:pointer;width:130px;text-align:center}
+.summary{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin-bottom:22px}
+@media(max-width:1100px){.summary{grid-template-columns:repeat(4,1fr)}}
+@media(max-width:600px){.summary{grid-template-columns:repeat(2,1fr)}}
+.sc{background:var(--surface);border-radius:12px;border:1px solid var(--border2);padding:14px 16px;position:relative;overflow:hidden;cursor:pointer;transition:all .15s}
+.sc:hover{transform:translateY(-1px)}
+.sc::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;border-radius:12px 0 0 12px}
+.sc.t::before{background:#888780}.sc.ci::before{background:var(--ci-brd)}.sc.st::before{background:var(--st-brd)}
+.sc.vc::before{background:var(--vc-brd)}.sc.wn::before{background:var(--wn-brd)}.sc.dg::before{background:var(--dg-brd)}.sc.co::before{background:var(--co-brd)}
+.sc-label{font-size:11px;font-weight:500;letter-spacing:.04em;color:var(--text3);text-transform:uppercase;margin-bottom:5px}
+.sc-val{font-size:26px;font-weight:700;font-family:'DM Mono',monospace;line-height:1}
+.sc-sub{font-size:10px;color:var(--text3);margin-top:3px}
+.filters{background:var(--surface);border-radius:14px;border:1px solid var(--border2);padding:16px 18px;margin-bottom:20px;display:flex;flex-direction:column;gap:12px}
+.filter-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.fl{font-size:12px;color:var(--text2);font-weight:500;white-space:nowrap;min-width:60px}
+.fb{font-family:'Noto Sans JP',sans-serif;font-size:12px;font-weight:500;padding:5px 12px;border-radius:99px;border:1px solid var(--border);background:transparent;color:var(--text2);cursor:pointer;transition:all .15s;white-space:nowrap}
+.fb:hover{background:var(--bg)}.fb.active{background:var(--text);color:#fff;border-color:var(--text)}
+.sfb{font-family:'Noto Sans JP',sans-serif;font-size:11px;font-weight:500;padding:4px 10px;border-radius:99px;border:1.5px solid;cursor:pointer;transition:all .15s;background:transparent;white-space:nowrap}
+.sfb.all{border-color:#888780;color:#5F5E5A}.sfb.ci{border-color:var(--ci-brd);color:var(--ci-bdg)}
+.sfb.co{border-color:var(--co-brd);color:var(--co-bdg)}.sfb.st{border-color:var(--st-brd);color:var(--st-bdg)}.sfb.vc{border-color:var(--vc-brd);color:var(--vc-bdg)}
+.sfb.active{color:#fff!important}
+.sfb.all.active{background:#888780;border-color:#888780}.sfb.ci.active{background:var(--ci-bdg);border-color:var(--ci-bdg)}
+.sfb.co.active{background:var(--co-bdg);border-color:var(--co-bdg)}.sfb.st.active{background:var(--st-bdg);border-color:var(--st-bdg)}.sfb.vc.active{background:var(--vc-bdg);border-color:var(--vc-bdg)}
+.cfb{font-family:'Noto Sans JP',sans-serif;font-size:11px;font-weight:500;padding:4px 10px;border-radius:99px;border:1px solid var(--border);background:transparent;color:var(--text2);cursor:pointer;transition:all .15s;white-space:nowrap}
+.cfb:hover{background:var(--bg)}.cfb.active{background:#444441;color:#fff;border-color:#444441}
+.legend{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:18px}
+.li{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2)}
+.ld{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.ps{margin-bottom:24px}
+.ph{display:flex;align-items:center;gap:10px;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border2)}
+.pn{font-size:14px;font-weight:700;font-family:'DM Mono',monospace}
+.pc{font-size:11px;color:var(--text3);background:var(--bg);border-radius:99px;padding:2px 8px}
+.rg{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
+.rc{background:var(--surface);border-radius:12px;border:1px solid var(--border2);border-left:4px solid;padding:14px 16px;transition:opacity .2s}
+.rc.sci{border-left-color:var(--ci-brd);background:var(--ci-bg)}.rc.swn{border-left-color:var(--wn-brd);background:var(--wn-bg)}
+.rc.sdg{border-left-color:var(--dg-brd);background:var(--dg-bg)}.rc.sun{border-left-color:var(--un-brd);background:var(--un-bg)}
+.rc.sst{border-left-color:var(--st-brd);background:var(--st-bg)}.rc.svc{border-left-color:var(--vc-brd);background:var(--vc-bg)}.rc.sco{border-left-color:var(--co-brd);background:var(--co-bg)}
+.rc.done{opacity:0.45}.rc.done .rtag{text-decoration:line-through;text-decoration-color:var(--text3)}
+.rt{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;gap:6px}
+.rt-left{display:flex;align-items:center;gap:8px;flex:1;min-width:0}
+.rtag{font-family:'DM Mono',monospace;font-size:15px;font-weight:500;white-space:nowrap}
+.rt-badges{display:flex;align-items:center;gap:5px;flex-shrink:0}
+.sb{font-size:10px;font-weight:700;padding:3px 8px;border-radius:99px;white-space:nowrap;color:#fff}
+.bci{background:var(--ci-bdg)}.bwn{background:var(--wn-bdg)}.bdg{background:var(--dg-bdg)}.bun{background:var(--un-bdg)}.bst{background:var(--st-bdg)}.bvc{background:var(--vc-bdg)}.bco{background:var(--co-bdg)}.bdone{background:#888780;color:#fff}
+.rg2{font-size:13px;font-weight:500;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rm{display:flex;gap:10px;flex-wrap:wrap;margin-top:5px}
+.mi{font-size:11px;color:var(--text2);display:flex;align-items:center;gap:3px}
+.md{width:4px;height:4px;border-radius:50%;background:var(--text3);flex-shrink:0}
+.dv{border:none;border-top:1px solid rgba(0,0,0,.08);margin:8px 0}
+.cr{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.cn{font-size:12px;font-weight:500;display:flex;align-items:center;gap:5px}
+.ci2{width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.08);display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0;color:var(--text2)}
+.tt{font-family:'DM Mono',monospace;font-size:11px;color:var(--text2);background:rgba(0,0,0,.05);padding:2px 7px;border-radius:6px;white-space:nowrap}
+.sdt{font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px;background:var(--wn-bdg);color:#fff}
+.vi{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px}
+.lct{font-size:11px;font-family:'DM Mono',monospace;background:rgba(0,0,0,.07);border-radius:6px;padding:3px 8px;color:var(--text2)}
+.cor{display:flex;align-items:center;gap:6px;margin-top:5px}
+.clabel{font-size:11px;color:var(--text3)}.cdate{font-size:12px;font-family:'DM Mono',monospace;font-weight:500;color:var(--text2)}
+.nl{font-size:11px;color:var(--st-bdg);font-weight:500;margin-left:4px}
+.cmb{margin-top:6px;font-size:11px;color:#633806;background:rgba(186,117,23,.1);border-radius:6px;padding:5px 8px}
+.nd{background:var(--surface);border-radius:12px;padding:40px 20px;text-align:center;color:var(--text3);font-size:14px;border:1px dashed var(--border)}
+.chk-wrap{display:flex;align-items:center;gap:5px;cursor:pointer;user-select:none}
+.chk-wrap input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:var(--ci-brd);flex-shrink:0}
+.chk-wrap span{font-size:11px;font-weight:500;color:var(--text2)}
+.reset-btn{font-size:11px;color:var(--text3);background:none;border:1px solid var(--border);border-radius:8px;padding:4px 10px;cursor:pointer;font-family:'Noto Sans JP',sans-serif}
+.reset-btn:hover{background:var(--bg)}
+</style>
+</head>
+<body>
+<script type="application/json" id="_dashdata">${jsonData}</script>
+<div class="header">
+  <div>
+    <h1>清掃確認ダッシュボード</h1>
+    <p>全部屋の稼働状況・清掃状態</p>
+    <p style="font-size:11px;color:var(--text3);margin-top:2px;font-family:DM Mono,monospace">${importedAt}</p>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <span style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;">CSV: ${importedAt}</span>
+    <button class="reset-btn" onclick="resetChecks()">消込をリセット</button>
+    <div class="date-nav">
+      <button onclick="chgDate(-1)">&#8592;</button>
+      <input type="date" id="date-input" value="${startDate}" onchange="render()">
+      <button onclick="chgDate(1)">&#8594;</button>
+    </div>
+  </div>
+</div>
+<div class="summary">
+  <div class="sc t" onclick="setSF(null,'all')"><div class="sc-label">全部屋</div><div class="sc-val" id="s0">0</div><div class="sc-sub">管理物件合計</div></div>
+  <div class="sc ci" onclick="setSF(null,'ci')"><div class="sc-label">本日CI</div><div class="sc-val" id="s1">0</div><div class="sc-sub">チェックイン</div></div>
+  <div class="sc co" onclick="setSF(null,'co')"><div class="sc-label">清掃のみ</div><div class="sc-val" id="s6">0</div><div class="sc-sub">CI無し清掃</div></div>
+  <div class="sc st" onclick="setSF(null,'st')"><div class="sc-label">滞在中</div><div class="sc-val" id="s2">0</div><div class="sc-sub">宿泊継続</div></div>
+  <div class="sc vc" onclick="setSF(null,'vc')"><div class="sc-label">空室</div><div class="sc-val" id="s3">0</div><div class="sc-sub">空き部屋</div></div>
+  <div class="sc wn" onclick="setSF(null,'wn')"><div class="sc-label">要注意</div><div class="sc-val" id="s4">0</div><div class="sc-sub">同日入替・未割当</div></div>
+  <div class="sc dg" onclick="setSF(null,'dg')"><div class="sc-label">要確認</div><div class="sc-val" id="s5">0</div><div class="sc-sub">清掃タスクなし</div></div>
+</div>
+<div class="legend">
+  <div class="li"><div class="ld" style="background:var(--ci-brd)"></div>本日CI（清掃済）</div>
+  <div class="li"><div class="ld" style="background:var(--wn-brd)"></div>同日入替 / 未割当</div>
+  <div class="li"><div class="ld" style="background:var(--dg-brd)"></div>清掃タスクなし</div>
+  <div class="li"><div class="ld" style="background:var(--co-brd)"></div>清掃予定（CI無し）</div>
+  <div class="li"><div class="ld" style="background:var(--st-brd)"></div>滞在中</div>
+  <div class="li"><div class="ld" style="background:var(--vc-brd)"></div>空室</div>
+</div>
+<div class="filters">
+  <div class="filter-row"><span class="fl">物件：</span><div id="prop-bar" style="display:flex;gap:6px;flex-wrap:wrap"></div></div>
+  <div class="filter-row">
+    <span class="fl">状態：</span>
+    <button class="sfb all active" onclick="setSF(this,'all')">全て</button>
+    <button class="sfb ci" onclick="setSF(this,'ci')">CI当日</button>
+    <button class="sfb co" onclick="setSF(this,'co')">清掃のみ</button>
+    <button class="sfb st" onclick="setSF(this,'st')">滞在中</button>
+    <button class="sfb vc" onclick="setSF(this,'vc')">空室</button>
+  </div>
+  <div class="filter-row" id="cleaner-row"><span class="fl">クリーナー：</span><div id="cleaner-bar" style="display:flex;gap:6px;flex-wrap:wrap"></div></div>
+</div>
+<div id="main"></div>
+<script>
+const _d=JSON.parse(document.getElementById('_dashdata').textContent);
+const ROOMS=_d.r,BK=_d.b,CH=_d.c,CM=_d.m;
+let aprop='all',asf='all',aclean='all';
+function cdate(ds){return ds.replace(/-/g,'/')}
+function pd(s){return new Date(s.replace(/\\/g,'-').replace(/\\//g,'-'))}
+function fd(s){if(!s)return'—';const d=new Date(s.replace(/\\//g,'-'));return(d.getMonth()+1)+'/'+d.getDate()}
+function diffD(a,b){return Math.round((new Date(b)-new Date(a))/86400000)}
+function isChecked(ds,tag){try{return localStorage.getItem('chk_'+ds+'_'+tag)==='1'}catch(e){return false}}
+function toggleCheck(ds,tag,v){try{localStorage.setItem('chk_'+ds+'_'+tag,v?'1':'0')}catch(e){}render()}
+function resetChecks(){const ds=document.getElementById('date-input').value;Object.keys(ROOMS).forEach(tag=>{try{localStorage.removeItem('chk_'+ds+'_'+tag)}catch(e){}});render()}
+function getCleanerToday(tag,ds){const k=ds+'_'+tag;if(CM[k])return CM[k].cl;const cd=cdate(ds);const h=(CH[tag]||[]).find(e=>e.d===cd);return h?h.c:null}
+function hasCleaningTask(tag,ds){return !!(CH[tag]||[]).find(e=>e.d===cdate(ds))}
+function getRoomSt(tag,ds){
+  const bks=BK[tag]||[];const d=new Date(ds);
+  for(const b of bks){
+    const ci=new Date(b.ci),co=new Date(b.co);
+    if(b.ci===ds){const k=ds+'_'+tag,cm=CM[k];if(!cm)return{type:'danger',b};if(cm.cl==='未割当')return{type:'unassigned',b,cm};if(cm.sd==='有')return{type:'warn',b,cm};return{type:'checkin',b,cm}}
+    if(ci<d&&d<co)return{type:'staying',b};
+  }
+  const hist=(CH[tag]||[]).filter(h=>pd(h.d)<=d);const lc=hist.length?hist[hist.length-1]:null;
+  const nb=bks.find(b=>new Date(b.ci)>d);
+  if(hasCleaningTask(tag,ds)){const cd=cdate(ds);const ce=(CH[tag]||[]).find(e=>e.d===cd);return{type:'cleanonly',lc,nb,cleaner:ce?ce.c:'未割当',cmt:ce?ce.cm:''}}
+  return{type:'vacant',lc,nb};
+}
+function getCleaners(ds){const set=new Set();Object.keys(ROOMS).forEach(tag=>{const c=getCleanerToday(tag,ds);if(c&&c!=='未割当')set.add(c)});return['all','未割当',...Array.from(set).sort()]}
+function render(){
+  const ds=document.getElementById('date-input').value;const tags=Object.keys(ROOMS);
+  const props=['all',...new Set(Object.values(ROOMS))];
+  const propBar=document.getElementById('prop-bar');propBar.innerHTML='';
+  props.forEach(p=>{const btn=document.createElement('button');btn.className='fb'+(aprop===p?' active':'');btn.textContent=p==='all'?'すべて':p.replace(/^\\d+_/,'');btn.onclick=()=>{aprop=p;render()};propBar.appendChild(btn)});
+  const cleaners=getCleaners(ds);const cleanBar=document.getElementById('cleaner-bar');cleanBar.innerHTML='';
+  cleaners.forEach(c=>{const btn=document.createElement('button');btn.className='cfb'+(aclean===c?' active':'');btn.textContent=c==='all'?'全員':c;btn.onclick=()=>{aclean=c;render()};cleanBar.appendChild(btn)});
+  document.getElementById('cleaner-row').style.display=cleaners.length>2?'flex':'none';
+  let cnt={t:tags.length,ci:0,st:0,vc:0,wn:0,dg:0,co:0};
+  tags.forEach(tag=>{const r=getRoomSt(tag,ds);if(['checkin','warn','unassigned','danger'].includes(r.type))cnt.ci++;if(r.type==='staying')cnt.st++;if(r.type==='vacant')cnt.vc++;if(r.type==='cleanonly')cnt.co++;if(r.type==='warn'||r.type==='unassigned')cnt.wn++;if(r.type==='danger')cnt.dg++});
+  ['s0','s1','s2','s3','s4','s5','s6'].forEach((id,i)=>document.getElementById(id).textContent=[cnt.t,cnt.ci,cnt.st,cnt.vc,cnt.wn,cnt.dg,cnt.co][i]);
+  const ord={danger:0,unassigned:1,warn:2,checkin:3,cleanonly:4,staying:5,vacant:6};
+  const grouped={};
+  tags.forEach(tag=>{
+    if(aprop!=='all'&&ROOMS[tag]!==aprop)return;
+    const r=getRoomSt(tag,ds);
+    const base=['checkin','warn','unassigned','danger'].includes(r.type)?'ci':r.type==='staying'?'st':r.type==='cleanonly'?'co':'vc';
+    if(asf!=='all'&&base!==asf)return;
+    if(aclean!=='all'){const c=getCleanerToday(tag,ds);if(aclean==='未割当'&&c!=='未割当')return;if(aclean!=='未割当'&&c!==aclean)return}
+    const prop=ROOMS[tag];if(!grouped[prop])grouped[prop]=[];grouped[prop].push({tag,r});
+  });
+  const main=document.getElementById('main');
+  if(!Object.keys(grouped).length){main.innerHTML='<div class="nd">該当する部屋がありません</div>';return}
+  main.innerHTML=Object.entries(grouped).sort((a,b)=>a[0].localeCompare(b[0])).map(([prop,rooms])=>{
+    const label=prop.replace(/^\\d+_/,'');
+    const sorted=[...rooms].sort((a,b)=>ord[a.r.type]-ord[b.r.type]);
+    const cards=sorted.map(({tag,r})=>{
+      const chk=isChecked(ds,tag);
+      const chkBox='<label class="chk-wrap" onclick="event.stopPropagation()"><input type="checkbox" '+(chk?'checked':'')+' onchange="toggleCheck(\''+ds+'\',\''+tag+'\',this.checked)"><span>'+(chk?'完了済み':'完了にする')+'</span></label>';
+      const doneBadge=chk?'<span class="sb bdone">完了</span>':'';
+      if(r.type==='vacant'){
+        const dago=r.lc?diffD(r.lc.d.replace(/\\//g,'-'),ds):null;
+        return'<div class="rc svc'+(chk?' done':'')+'"><div class="rt"><div class="rt-left"><span class="rtag">'+tag+'</span></div><div class="rt-badges"><span class="sb bvc">空室</span>'+doneBadge+'</div></div><div class="vi">'+(r.lc?'<span class="lct">最終清掃 '+fd(r.lc.d)+'（'+dago+'日前）</span><span style="font-size:11px;color:var(--text3)">'+(r.lc.c!=='未割当'?r.lc.c:'')+'</span>':'<span class="lct">清掃履歴なし</span>')+'</div>'+(r.nb?'<div style="margin-top:5px;font-size:11px;color:var(--vc-bdg);font-weight:500">次回CI: '+fd(r.nb.ci)+' '+r.nb.g+'</div>':'<div style="margin-top:4px;font-size:11px;color:var(--text3)">次予約なし</div>')+'</div>';
+      }
+      if(r.type==='staying'){
+        const dl=diffD(ds,r.b.co);
+        return'<div class="rc sst'+(chk?' done':'')+'"><div class="rt"><div class="rt-left"><span class="rtag">'+tag+'</span></div><div class="rt-badges"><span class="sb bst">滞在中</span>'+doneBadge+'</div></div><div class="rg2" title="'+r.b.g+'">'+r.b.g+'</div><div class="rm"><div class="mi"><div class="md"></div>'+r.b.n+'名</div><div class="mi"><div class="md"></div>'+r.b.nat+'</div><div class="mi"><div class="md"></div>'+r.b.s+'</div></div><div style="display:flex;align-items:center;gap:6px;margin-top:6px"><span style="font-size:11px;color:var(--text3)">チェックアウト</span><span style="font-size:12px;font-family:DM Mono,monospace;font-weight:500">'+r.b.co+'</span><span class="nl">あと'+dl+'泊</span></div></div>';
+      }
+      if(r.type==='cleanonly'){
+        const cl=r.cleaner||'未割当';const nb=r.nb;
+        return'<div class="rc sco'+(chk?' done':'')+'"><div class="rt"><div class="rt-left"><span class="rtag">'+tag+'</span></div><div class="rt-badges"><span class="sb bco">清掃予定</span>'+doneBadge+'</div></div><div style="margin-top:4px"><div class="cr"><div class="cn"><div class="ci2">人</div>'+cl+'</div>'+(nb?'<span style="font-size:11px;color:var(--co-bdg);font-weight:500">次回CI '+fd(nb.ci)+'</span>':'')+'</div>'+(nb?'<div style="margin-top:4px;font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+nb.g+'</div>':'')+(nb?'<div class="rm"><div class="mi"><div class="md"></div>'+nb.n+'名</div><div class="mi"><div class="md"></div>'+nb.nat+'</div><div class="mi"><div class="md"></div>'+nb.s+'</div></div>':'')+'</div>'+(r.cmt?'<div class="cmb">'+r.cmt+'</div>':'')+'<hr class="dv">'+chkBox+'</div>';
+      }
+      const cls=r.type==='checkin'?'sci':r.type==='warn'?'swn':r.type==='unassigned'?'sun':'sdg';
+      const bcls=r.type==='checkin'?'bci':r.type==='warn'?'bwn':r.type==='unassigned'?'bun':'bdg';
+      const blbl=r.type==='checkin'?'本日CI':r.type==='warn'?'同日入替':r.type==='unassigned'?'未割当':'要確認';
+      const cm=r.cm;const cleaner=cm?(cm.cl==='未割当'?'未割当':cm.cl):'タスクなし';
+      const cot=cm&&cm.cot?cm.cot:'—',cit=cm&&cm.cit?cm.cit:'—';const comment=cm&&cm.cm?cm.cm:'';
+      return'<div class="rc '+cls+(chk?' done':'')+'"><div class="rt"><div class="rt-left"><span class="rtag">'+tag+'</span></div><div class="rt-badges"><span class="sb '+bcls+'">'+blbl+'</span>'+doneBadge+'</div></div><div class="rg2" title="'+r.b.g+'">'+r.b.g+'</div><div class="rm"><div class="mi"><div class="md"></div>'+r.b.n+'名</div><div class="mi"><div class="md"></div>'+r.b.nat+'</div><div class="mi"><div class="md"></div>'+r.b.s+'</div></div><hr class="dv"><div class="cr"><div class="cn"><div class="ci2">人</div>'+cleaner+'</div><div style="display:flex;gap:5px;align-items:center"><span class="tt">CO '+cot+' / CI '+cit+'</span>'+(cm&&cm.sd==='有'?'<span class="sdt">当日</span>':'')+'</div></div>'+(cm&&cm.cd?'<div style="margin-top:4px;font-size:11px;color:var(--text3)">清掃実施日: <span style="font-family:DM Mono,monospace;font-weight:500;color:var(--text2)">'+fd(cm.cd)+'</span></div>':'')+(comment?'<div class="cmb">'+comment+'</div>':'')+'<hr class="dv">'+chkBox+'</div>';
+    }).join('');
+    return'<div class="ps"><div class="ph"><span class="pn">'+label+'</span><span class="pc">'+rooms.length+'部屋</span></div><div class="rg">'+cards+'</div></div>';
+  }).join('');
+}
+function setSF(btn,sf){asf=sf;document.querySelectorAll('.sfb').forEach(b=>b.classList.remove('active'));if(btn)btn.classList.add('active');else document.querySelectorAll('.sfb.'+sf).forEach(b=>b.classList.add('active'));render()}
+function chgDate(d){const i=document.getElementById('date-input');const dt=new Date(i.value);dt.setDate(dt.getDate()+d);i.value=dt.toISOString().split('T')[0];render()}
+render();
+<\/script>
+</body>
+</html>`;
+}
+
+// ── Netlify API デプロイ ──
+async function deploy(){
+  const token = document.getElementById('token-input').value.trim();
+  const siteId = document.getElementById('site-id').value.trim();
+  const startDate = document.getElementById('date-start').value;
+
+  if(!token || !siteId){ alert('トークンとサイトIDを入力してください'); return; }
+  if(!files.booking || !files.cleaning){ alert('CSVファイルを両方選択してください'); return; }
+
+  document.getElementById('deploy-btn').disabled = true;
+  document.getElementById('log-box').innerHTML = '';
+  setStatus('loading', '処理中...', 'CSVを読み込んでいます');
+  setProgress(10);
+  log('📋 CSVファイルを読み込み中...', 'info');
+
+  try {
+    // CSVを読み込む
+    const bookingText = await readFile(files.booking);
+    const cleaningText = await readFile(files.cleaning);
+    log('✅ CSV読み込み完了', 'ok');
+    setProgress(30);
+
+    // データ処理
+    log('⚙️ データを処理中...', 'info');
+    setStatus('loading', '処理中...', 'データを変換しています');
+    // デバッグ: CSVの先頭を確認
+    const b1 = bookingText.substring(0,100);
+    const c1 = cleaningText.substring(0,100);
+    log(`予約CSV先頭: ${b1.replace(/\n/g,' ').substring(0,80)}`, 'info');
+    log(`清掃CSV先頭: ${c1.replace(/\n/g,' ').substring(0,80)}`, 'info');
+    const data = processData(bookingText, cleaningText);
+    const roomCount = Object.keys(data.all_rooms).length;
+    const bookingCount = Object.keys(data.bookings_by_room).length;
+    const cmCount = Object.keys(data.cleaning_map).length;
+    log(`部屋数: ${roomCount}, 予約部屋数: ${bookingCount}, 清掃マップ: ${cmCount}件`, roomCount > 0 ? 'ok' : 'err');
+    if(roomCount === 0){
+      // parseCSVの結果を確認
+      const rows = bookingText.replace(/^\uFEFF/,'').split('\n');
+      log(`予約CSV行数: ${rows.length}`, 'warn');
+      log(`ヘッダー: ${rows[0].substring(0,60)}`, 'warn');
+      if(rows.length > 1) log(`1行目: ${rows[1].substring(0,60)}`, 'warn');
+    }
+    setProgress(50);
+
+    // HTML生成
+    log('🏗️ ダッシュボードHTMLを生成中...', 'info');
+    setStatus('loading', '処理中...', 'HTMLを生成しています');
+    const now = new Date();
+    const importedAt = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    // JSONデータを直接埋め込む（最も確実な方式）
+    const jsonData = JSON.stringify({r:data.all_rooms,b:data.bookings_by_room,c:data.cleaning_history,m:data.cleaning_map});
+    const html = generateHTML(data, startDate, importedAt, jsonData);
+    log(`✅ HTML生成完了 (${Math.round(html.length/1024)}KB)`, 'ok');
+    setProgress(65);
+
+    // Netlifyにデプロイ
+    log('🚀 Netlifyにデプロイ中...', 'info');
+    setStatus('loading', 'デプロイ中...', 'Netlifyにアップロードしています');
+
+    // ZIP形式でデプロイ（Netlify API）
+    const blob = new Blob([html], { type: 'text/html' });
+
+    // ファイルのSHA1ハッシュを計算
+    const hashBuffer = await crypto.subtle.digest('SHA-1', await blob.arrayBuffer());
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const sha1 = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    log(`📝 SHA1: ${sha1.substring(0,16)}...`, 'info');
+    setProgress(75);
+
+    // デプロイ作成
+    const deployRes = await fetch(`https://api.netlify.com/api/v1/sites/${siteId}/deploys`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ files: { '/index.html': sha1 }, async: false })
+    });
+
+    if(!deployRes.ok){
+      const errText = await deployRes.text();
+      throw new Error(`デプロイ作成失敗: ${deployRes.status} ${errText}`);
+    }
+
+    const deployData = await deployRes.json();
+    const deployId = deployData.id;
+    log(`✅ デプロイID: ${deployId.substring(0,12)}...`, 'ok');
+    setProgress(85);
+
+    // ファイルアップロード
+    log('📤 index.htmlをアップロード中...', 'info');
+    const uploadRes = await fetch(`https://api.netlify.com/api/v1/deploys/${deployId}/files/index.html`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/octet-stream'
+      },
+      body: blob
+    });
+
+    if(!uploadRes.ok){
+      const errText = await uploadRes.text();
+      throw new Error(`アップロード失敗: ${uploadRes.status} ${errText}`);
+    }
+
+    log('✅ アップロード完了！', 'ok');
+    setProgress(95);
+
+    // 完了待機
+    log('⏳ デプロイ完了を確認中...', 'info');
+    await new Promise(r => setTimeout(r, 3000));
+    setProgress(100);
+
+    log('🎉 デプロイ完了！', 'ok');
+    setStatus('success', '🎉 デプロイ完了！', '約1〜2分でURLに反映されます', SITE_URL);
+
+  } catch(err) {
+    log(`❌ エラー: ${err.message}`, 'err');
+    setStatus('error', 'エラーが発生しました', err.message);
+    setProgress(0);
+  }
+
+  document.getElementById('deploy-btn').disabled = false;
+}
+
+function readFile(file){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      let text = e.target.result;
+      // BOM除去
+      text = text.replace(/^\uFEFF/, '');
+      // 改行コード統一
+      text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      resolve(text);
+    };
+    reader.onerror = () => reject(new Error('ファイル読み込み失敗'));
+    reader.readAsText(file, 'UTF-8');
+  });
+}
+</script>
+</body>
+</html>
